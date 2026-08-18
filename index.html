@@ -1,0 +1,1005 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Digital Counter Pro - COMOSEN</title>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+    <style>
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        
+        :root {
+            --bg-color: #e0e5ec; --text-color: #31344b;
+            --shadow-light: #ffffff; --shadow-dark: #b8b9be;
+            --input-bg: #e0e5ec; --accent-color: #007bff;
+        }
+
+        body.night-mode {
+            --bg-color: #292d3e; --text-color: #e0e6ed;
+            --shadow-light: #33384d; --shadow-dark: #1f222f;
+            --input-bg: #292d3e; --accent-color: #4da3ff;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Roboto, sans-serif;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            min-height: 100vh; margin: 0; background-color: var(--bg-color); color: var(--text-color);
+            user-select: none; overflow: hidden; transition: background-color 0.3s, color 0.3s;
+        }
+
+        /* Top Actions */
+        .top-left-controls, .top-right-controls { position: fixed; top: 15px; display: flex; gap: 12px; z-index: 100; }
+        .top-left-controls { left: 15px; }
+        .top-right-controls { right: 15px; }
+        
+        .top-btn {
+            width: 42px; height: 42px; border-radius: 50%; background: var(--bg-color); border: none;
+            box-shadow: 3px 3px 6px var(--shadow-dark), -3px -3px 6px var(--shadow-light);
+            display: flex; align-items: center; justify-content: center; font-size: 18px; 
+            cursor: pointer; color: var(--text-color); transition: 0.2s;
+        }
+        .top-btn:active { transform: scale(0.9); box-shadow: inset 2px 2px 5px var(--shadow-dark), inset -2px -2px 5px var(--shadow-light); }
+        
+        /* Badge Notifikasi */
+        .badge {
+            position: absolute; top: -4px; right: -4px; background-color: #ff4757; color: white;
+            border-radius: 50%; width: 18px; height: 18px; font-size: 10px; font-weight: bold;
+            display: flex; align-items: center; justify-content: center; pointer-events: none;
+            box-shadow: 1px 1px 4px rgba(0,0,0,0.4); opacity: 0; transition: opacity 0.3s, transform 0.2s;
+        }
+
+        .settings-container { width: 90%; max-width: 400px; margin: 50px 0 15px; }
+        .settings-box {
+            background: var(--bg-color); padding: 15px; border-radius: 15px;
+            box-shadow: 5px 5px 10px var(--shadow-dark), -5px -5px 10px var(--shadow-light);
+            transition: background 0.3s, box-shadow 0.3s;
+        }
+        
+        /* Teks Animasi Notifikasi */
+        #action-notification {
+            height: 24px; font-size: 15px; font-weight: 900; text-align: left; 
+            margin-bottom: 8px; opacity: 1; display: flex; align-items: center; justify-content: flex-start;
+        }
+        .anim-blink { animation: blinkText 0.4s 2; }
+        @keyframes blinkText { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
+
+        .tabs { display: flex; width: 100%; border-radius: 8px; overflow: hidden; margin-bottom: 15px; background: var(--input-bg); box-shadow: inset 2px 2px 4px var(--shadow-dark), inset -2px -2px 4px var(--shadow-light); }
+        .tab { flex: 1; padding: 10px 15px; text-align: center; font-size: 12px; font-weight: bold; cursor: pointer; transition: 0.3s; color: var(--text-color); opacity: 0.6; display: flex; align-items: center; justify-content: space-between; }
+        .tab.active { background: var(--accent-color); color: white; opacity: 1; box-shadow: inset 0 0 5px rgba(0,0,0,0.2); }
+
+        .status-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; transition: background-color 0.3s, box-shadow 0.3s; }
+        .dot-on { background-color: #2ecc71; box-shadow: 0 0 6px #2ecc71; }
+        .dot-off { background-color: #ff4757; }
+
+        .sensor-section { display: flex; align-items: stretch; gap: 15px; margin-bottom: 12px; border-bottom: 1px solid var(--shadow-dark); padding-bottom: 12px; }
+        
+        .camera-wrapper { display: flex; flex-direction: column; align-items: center; justify-content: center; flex-shrink: 0; }
+        #camera-container {
+            position: relative; width: 95px; height: 95px; border-radius: 10px; overflow: hidden;
+            box-shadow: inset 2px 2px 5px #222, inset -2px -2px 5px #444; background: #333;
+        }
+        #video { width: 100%; height: 100%; object-fit: cover; }
+        .video-mirror { transform: scaleX(-1); } 
+        
+        #color-picker-target {
+            position: absolute; top: 50%; left: 50%; width: 6px; height: 6px;
+            border: 1px solid white; border-radius: 50%; transform: translate(-50%, -50%);
+            box-shadow: 0 0 4px black; z-index: 10;
+        }
+
+        .input-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+        label { display: block; font-size: 11px; color: var(--text-color); opacity: 0.8; text-transform: uppercase; margin-bottom: 4px; font-weight: bold; }
+
+        input, select {
+            padding: 10px; width: 100%; font-size: 14px; border: none; border-radius: 6px;
+            background: var(--input-bg); box-shadow: inset 2px 2px 4px var(--shadow-dark), inset -2px -2px 4px var(--shadow-light);
+            color: var(--accent-color); outline: none; transition: background 0.3s, box-shadow 0.3s;
+        }
+        input::placeholder { color: var(--accent-color); opacity: 0.5; font-size: 14px; }
+
+        .target-wrapper { position: relative; display: flex; align-items: center; }
+        
+        .clear-btn {
+            position: absolute; right: 6px; width: 26px; height: 26px;
+            background: var(--bg-color); color: var(--text-color); border: none; border-radius: 50%;
+            cursor: pointer; display: flex; align-items: center; justify-content: center;
+            box-shadow: 2px 2px 4px var(--shadow-dark), -2px -2px 4px var(--shadow-light);
+            padding: 0; transition: 0.2s;
+        }
+        .clear-btn:active { transform: scale(0.9); box-shadow: inset 2px 2px 4px var(--shadow-dark), inset -2px -2px 4px var(--shadow-light); }
+
+        #display { font-size: clamp(75px, 22vw, 120px); font-weight: 900; line-height: 1; margin: 0; color: var(--text-color); transition: transform 0.1s, color 0.3s, font-size 0.2s; z-index: 10;}
+
+        /* Efek Animasi Melayang */
+        .display-container { position: relative; display: flex; justify-content: center; width: 100%; }
+        .floating-anim-container { 
+            position: absolute; width: 100%; height: 100%; display: flex; 
+            justify-content: center; align-items: center; top: 0; left: 0; 
+            z-index: 50; pointer-events: none; 
+        }
+        
+        .float-text {
+            position: absolute; font-size: 40px; font-weight: 900;
+            animation: floatUp 0.5s ease-out forwards; 
+        }
+        
+        @keyframes floatUp {
+            0% { opacity: 1; transform: translateY(0) scale(0.5); }
+            50% { opacity: 1; transform: translateY(-100px) scale(1.5); }
+            100% { opacity: 0; transform: translateY(-150px) scale(2.5); }
+        }
+
+        .led-indicator {
+            width: 12px; height: 12px; border-radius: 50%; margin-bottom: 5px; border: 1px solid transparent;
+            background-color: var(--bg-color); box-shadow: inset 2px 2px 6px var(--shadow-dark), inset -2px -2px 6px var(--shadow-light);
+        }
+        .led-active { background-color: #ccffcc; box-shadow: 0 0 10px #00ff00; border-color: #00ff00; }
+        .led-limit { background-color: #ff4757; box-shadow: 0 0 10px #ff4757; animation: pulse 0.5s infinite; }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+
+        /* Area Tombol TAP */
+        .main-tap-container { display: flex; align-items: center; justify-content: center; gap: 20px; margin: 15px 0 45px 0; }
+
+        .side-btn {
+            width: 55px; height: 55px; border-radius: 50%; border: none;
+            background: var(--bg-color); color: var(--text-color); font-size: 20px; font-weight: bold;
+            box-shadow: 5px 5px 10px var(--shadow-dark), -5px -5px 10px var(--shadow-light);
+            cursor: pointer; transition: 0.2s; display: flex; align-items: center; justify-content: center;
+            line-height: 0; padding-bottom: 2px; 
+        }
+        .side-btn:active { transform: scale(0.9); box-shadow: inset 3px 3px 6px var(--shadow-dark), inset -3px -3px 6px var(--shadow-light); }
+
+        .btn-wrapper {
+            position: relative; 
+            width: 200px; height: 200px; display: flex; align-items: center; justify-content: center;
+            background: var(--bg-color); border-radius: 50%;
+            box-shadow: 8px 8px 16px var(--shadow-dark), -8px -8px 16px var(--shadow-light); transition: background 0.3s, box-shadow 0.3s;
+        }
+
+        #btn-tap {
+            width: 170px; height: 170px; border-radius: 50%; border: 4px solid var(--bg-color);
+            background: linear-gradient(145deg, #0085ff, #006ee6); color: white; font-size: 26px; font-weight: bold;
+            box-shadow: 6px 6px 12px var(--shadow-dark), -6px -6px 12px var(--shadow-light);
+            outline: none; cursor: pointer; transition: transform 0.05s, box-shadow 0.3s;
+        }
+        #btn-tap:active { transform: scale(0.95); box-shadow: inset 4px 4px 8px #0056b3, inset -4px -4px 8px #007cff; }
+
+        .controls { display: flex; gap: 8px; justify-content: center; align-items: center; flex-wrap: wrap; margin-bottom: 20px; }
+
+        .btn-action, .toggle-sensor {
+            font-weight: bold; border: none; cursor: pointer;
+            display: flex; align-items: center; justify-content: center; text-decoration: none;
+        }
+        
+        .btn-action {
+            border-radius: 10px; padding: 12px 18px; font-size: 13px; background: var(--bg-color); color: var(--text-color);
+            box-shadow: 3px 3px 6px var(--shadow-dark), -3px -3px 6px var(--shadow-light); transition: transform 0.1s, background 0.3s, color 0.3s, box-shadow 0.3s;
+        }
+        .btn-action:active { transform: scale(0.9); }
+
+        .toggle-sensor { background: #ff4757; color: white; padding: 10px; font-size: 12px; margin-top: 8px; border-radius: 5px; box-shadow: 2px 2px 4px var(--shadow-dark); }
+
+        .calc-btn { aspect-ratio: 1 / 1; font-size: 18px; padding: 0 !important; }
+
+        #locked-color-preview { width: 14px; height: 14px; border-radius: 50%; display: inline-block; border: 1px solid #ccc; vertical-align: middle; margin-left: 5px; }
+        .continue-btn { display: none; color: #28a745; }
+
+        /* LIST MODAL & RIWAYAT */
+        .list-item, .history-item {
+            background: var(--bg-color); padding: 10px 12px; border-radius: 8px; font-size: 12px;
+            display: flex; justify-content: space-between; align-items: center;
+            box-shadow: inset 2px 2px 4px var(--shadow-dark), inset -2px -2px 4px var(--shadow-light); color: var(--text-color); margin-bottom: 8px;
+        }
+        .del-btn { background: #ff4757; color: white; border: none; border-radius: 6px; padding: 6px 10px; cursor: pointer; font-size: 11px; font-weight: bold; box-shadow: 2px 2px 4px var(--shadow-dark); }
+        .history-time { font-size: 10px; opacity: 0.6; }
+        .history-detail { font-weight: 900; font-size: 14px; }
+
+        /* MODAL CSS */
+        .modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 1000; display: none; align-items: center; justify-content: center; backdrop-filter: blur(3px); }
+        .modal-content { background: var(--bg-color); padding: 25px; border-radius: 15px; width: 90%; max-width: 360px; box-shadow: 5px 5px 15px var(--shadow-dark), -5px -5px 15px var(--shadow-light); }
+        .modal-content h3 { margin-top: 0; text-align: center; color: var(--text-color); font-size: 15px; margin-bottom: 20px;}
+        
+        .emoji-grid { display: flex; flex-direction: column; gap: 10px; max-height: 60vh; overflow-y: auto; padding-right: 5px; }
+        .emoji-item { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+        .emoji-item label { margin: 0; font-size: 11px; width: 85px; }
+        .emoji-item input.val-input { width: 50px; padding: 8px; font-size: 12px; text-align: center; }
+        .emoji-item select { flex: 1; padding: 8px; font-size: 12px; text-align: left; }
+        
+        #canvas { display: none; }
+    </style>
+</head>
+<body id="main-body">
+
+<div class="top-left-controls">
+    <button class="top-btn" onclick="toggleNightMode()" title="Mode Malam">
+        <span id="theme-icon">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M12 3c-4.97 0-9 4.03-9 9s4.03 9 9 9 9-4.03 9-9c0-.46-.04-.92-.1-1.36a5.389 5.389 0 0 1-4.4 2.26 5.403 5.403 0 0 1-3.14-9.8c-.44-.06-.9-.1-1.36-.1z"/></svg>
+        </span>
+    </button>
+</div>
+
+<div class="top-right-controls">
+    <button class="top-btn" onclick="openHistoryModal()" title="Riwayat Aksi">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M13 3a9 9 0 0 0-9 9H1l3.89 3.89.07.14L9 12H6c0-3.87 3.13-7 7-7s7 3.13 7 7-3.13 7-7 7c-1.93 0-3.68-.79-4.94-2.06l-1.42 1.42A8.954 8.954 0 0 0 13 21a9 9 0 0 0 0-18zm-1 5v5l4.25 2.52.75-1.23-3.5-2.06V8h-1.5z"/></svg>
+    </button>
+    <button class="top-btn" onclick="openSaveModal()" title="Simpan">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M17 3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V7l-4-4zm-5 16c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3zm3-10H5V5h10v4z"/></svg>
+    </button>
+    <div style="position: relative;">
+        <button class="top-btn" onclick="openListModal()" title="Daftar">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg>
+        </button>
+        <span id="saved-badge" class="badge">0</span>
+    </div>
+    <button class="top-btn" onclick="openCalcModal()" title="Kalkulator">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M19 2H5c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-8 16H9v-2h2v2zm0-4H9v-2h2v2zm4 4h-2v-2h2v2zm0-4h-2v-2h2v2zm0-4H9V8h6v2zM15 4H9v2h6V4z"/></svg>
+    </button>
+</div>
+
+<div class="settings-container">
+    <div class="settings-box">
+        <div id="action-notification">-</div>
+
+        <div class="tabs">
+            <div id="tab-color" class="tab active" onclick="switchTab('color')">
+                <span style="visibility: hidden; width: 10px;"></span>
+                <span>🎨 WARNA</span>
+                <span id="dot-color" class="status-dot dot-off"></span>
+            </div>
+            <div id="tab-emoji" class="tab" onclick="switchTab('emoji')">
+                <span style="visibility: hidden; width: 10px;"></span>
+                <span>✋ EMOJI</span>
+                <span id="dot-emoji" class="status-dot dot-off"></span>
+            </div>
+        </div>
+
+        <div class="sensor-section">
+            <div class="camera-wrapper">
+                <div id="camera-container">
+                    <video id="video" class="video-mirror" autoplay playsinline></video>
+                    <div id="color-picker-target"></div>
+                </div>
+            </div>
+            <div style="flex-grow: 1;">
+                <button class="btn-action" id="dynamic-top-btn" style="width: 100%; font-size: 12px; padding: 10px;" onclick="lockCurrentColor()">
+                    <span id="dt-text">
+                        <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" style="vertical-align: text-bottom; margin-right: 4px;"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm0-14c-3.31 0-6 2.69-6 6s2.69 6 6 6 6-2.69 6-6-2.69-6-6-6zm0 10c-2.21 0-4-1.79-4-4s1.79-4 4-4 4 1.79 4 4-1.79 4-4 4z"/></svg> KUNCI WARNA OBJEK
+                    </span> <span id="locked-color-preview"></span>
+                </button>
+                <a href="#" id="dynamic-toggle-btn" class="toggle-sensor" style="width: 100%;" onclick="toggleSensor()">
+                    <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" style="vertical-align: text-bottom; margin-right: 4px;"><path d="M12 10a2 2 0 1 0 0 4 2 2 0 0 0 0-4z M16.95 6.95l-1.41 1.41a4.99 4.99 0 0 1 0 7.28l1.41 1.41a6.99 6.99 0 0 0 0-10.1z M7.05 6.95l1.41 1.41a4.99 4.99 0 0 0 0 7.28l-1.41 1.41a6.99 6.99 0 0 1 0-10.1z M19.78 4.12l-1.41 1.41a8.99 8.99 0 0 1 0 12.96l1.41 1.41a10.99 10.99 0 0 0 0-15.78z M4.22 4.12l1.41 1.41a8.99 8.99 0 0 0 0 12.96l-1.41 1.41a10.99 10.99 0 0 1 0-15.78z"/></svg> SENSOR: OFF
+                </a>
+                <p id="group-info" style="font-size: 11px; font-weight: bold; opacity: 0.8; margin: 8px 0 0 0; text-align: center;">Status: Kamera Off</p>
+            </div>
+        </div>
+        
+        <div class="input-row">
+            <div>
+                <label id="target-label">Target Limit</label>
+                <div class="target-wrapper">
+                    <input type="number" id="limit" value="" placeholder="∞" oninput="checkLimit()" onClick="this.select();" style="padding-right: 35px;">
+                    <button class="clear-btn" onclick="clearTarget()">
+                        <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+                    </button>
+                </div>
+            </div>
+            <div>
+                <label>TAP SOUND</label>
+                <select id="click-sound">
+                    <option value="none">OFF</option>
+                    <option value="tajam" selected>Ping</option>
+                    <option value="tumpul">Pop</option>
+                    <option value="elektro">Beep</option>
+                    <option value="cyber">Robot</option>
+                    <option value="kick">Bass</option>
+                    <option value="snap">Snap</option>
+                </select>
+            </div>
+        </div>
+        <div class="input-row" style="margin-top: 10px;">
+            <div>
+                <label>ALARM SOUND</label>
+                <select id="limit-sound">
+                    <option value="" hidden></option>
+                    <option value="dering">Dering</option>
+                    <option value="sirine">Sirine</option>
+                    <option value="long">Tone</option>
+                    <option value="ufo">UFO</option>
+                    <option value="bell">Lonceng</option>
+                    <option value="emergency">Morse</option>
+                </select>
+            </div>
+            <div>
+                <label>VOICE</label>
+                <select id="ai-voice-toggle">
+                    <option value="off" selected>OFF</option>
+                    <option value="on">ON</option>
+                </select>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="led" class="led-indicator"></div>
+<div class="display-container">
+    <div id="display">0</div>
+</div>
+
+<div class="main-tap-container">
+    <button id="btn-undo" class="side-btn" onclick="undoCount()" title="Undo">
+        <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><path d="M12.5 8c-2.65 0-5.05.99-6.9 2.6L2 7v9h9l-3.62-3.62c1.39-1.16 3.16-1.88 5.12-1.88 3.54 0 6.55 2.31 7.6 5.5l2.37-.78C21.08 11.03 17.15 8 12.5 8z"/></svg>
+    </button>
+    <div class="btn-wrapper">
+        <div id="floating-area" class="floating-anim-container"></div>
+        <button id="btn-tap">TAP</button>
+    </div>
+    <button id="btn-redo" class="side-btn" onclick="redoCount()" title="Redo">
+        <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><path d="M18.4 10.6C16.55 8.99 14.15 8 11.5 8c-4.65 0-8.58 3.03-9.96 7.22l2.37.78c1.05-3.19 4.06-5.5 7.6-5.5 1.95 0 3.73.72 5.12 1.88L13 16h9V7l-3.6 3.6z"/></svg>
+    </button>
+</div>
+
+<div class="controls">
+    <button class="btn-action" onclick="resetCounter()">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" style="vertical-align: text-bottom; margin-right: 4px;"><path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg> RESET
+    </button>
+    <button class="btn-action" onclick="decreaseCounter()">- KURANGI</button>
+    <button class="btn-action" id="btn-lock" onclick="toggleSystemLock()">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" style="vertical-align: text-bottom; margin-right: 4px;"><path d="M12 17c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm6-9h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6h1.9c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm0 12H6V10h12v10z"/></svg> <span>KUNCI</span>
+    </button>
+    <button id="btn-continue" class="btn-action continue-btn" onclick="continueCounter()">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" style="vertical-align: text-bottom; margin-right: 4px;"><path d="M8 5v14l11-7z"/></svg> LANJUT
+    </button>
+</div>
+
+<!-- Modal Pengaturan Emoji -->
+<div id="emoji-modal" class="modal">
+    <div class="modal-content">
+        <h3>PENGATURAN AKSI EMOJI</h3>
+        <div class="emoji-grid">
+            <div class="emoji-item"><label>Tambah (+):</label> <input type="number" id="val-tambah" class="val-input" value="1"> <select id="emj-tambah"></select></div>
+            <div class="emoji-item"><label>Kurang (-):</label> <input type="number" id="val-kurang" class="val-input" value="1"> <select id="emj-kurang"></select></div>
+            <div class="emoji-item"><label>Kali (x):</label> <input type="number" id="val-kali" class="val-input" value="2"> <select id="emj-kali"></select></div>
+            <div class="emoji-item"><label>Bagi (/):</label> <input type="number" id="val-bagi" class="val-input" value="2"> <select id="emj-bagi"></select></div>
+            <div class="emoji-item" style="margin-top: 5px;"><label>Auto Simpan:</label> <select id="emj-simpan"></select></div>
+            <div class="emoji-item"><label>Undo:</label> <select id="emj-undo"></select></div>
+            <div class="emoji-item"><label>Redo:</label> <select id="emj-redo"></select></div>
+            <div class="emoji-item"><label>Reset (0):</label> <select id="emj-reset"></select></div>
+            <div class="emoji-item"><label>Lanjut:</label> <select id="emj-lanjut"></select></div>
+            <div class="emoji-item"><label>Kunci/Buka:</label> <select id="emj-kunci"></select></div>
+        </div>
+        <div style="display: flex; gap: 10px; margin-top: 20px;">
+            <button onclick="saveEmojiSettings()" class="btn-action" style="flex: 1; background: var(--accent-color); color: white;">SIMPAN</button>
+            <button onclick="closeModal('emoji-modal')" class="btn-action" style="flex: 1; background: #7f8c8d; color: white;">BATAL</button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Simpan Poin -->
+<div id="save-modal" class="modal">
+    <div class="modal-content">
+        <h3>SIMPAN HASIL PENGHITUNGAN</h3>
+        <div style="text-align: center; margin-bottom: 15px;">
+            <span style="font-size: 13px; opacity: 0.8;">Total Poin:</span>
+            <div id="save-modal-count" style="font-size: 32px; font-weight: 900; color: var(--accent-color); margin-top: 2px;">0</div>
+        </div>
+        <div style="margin-bottom: 20px;">
+            <label style="margin-bottom: 6px;">Judul / Catatan:</label>
+            <input type="text" id="save-modal-title" placeholder="Judul/Deskripsi">
+        </div>
+        <div style="display: flex; gap: 10px;">
+            <button onclick="confirmSaveCount()" class="btn-action" style="flex: 1; background: var(--accent-color); color: white;">KONFIRMASI</button>
+            <button onclick="closeModal('save-modal')" class="btn-action" style="flex: 1; background: #7f8c8d; color: white;">BATAL</button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Daftar Poin -->
+<div id="list-modal" class="modal">
+    <div class="modal-content">
+        <h3>DAFTAR POIN TERSIMPAN</h3>
+        <div id="saved-list-container" style="max-height: 50vh; overflow-y: auto; padding-right: 5px; display: flex; flex-direction: column; margin-bottom: 10px;"></div>
+        <div id="total-saved-points" style="text-align: right; font-weight: 900; font-size: 16px; margin-bottom: 15px; color: var(--accent-color);">Total Poin: 0</div>
+        <div style="display: flex; gap: 10px;">
+            <button onclick="clearAllSaved()" class="btn-action" style="flex: 1; background: #ff4757; color: white;">HAPUS SEMUA</button>
+            <button onclick="closeModal('list-modal')" class="btn-action" style="flex: 1; background: var(--accent-color); color: white;">TUTUP</button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Riwayat Aksi -->
+<div id="history-modal" class="modal">
+    <div class="modal-content">
+        <h3>RIWAYAT AKSI</h3>
+        <div id="history-list-container" style="max-height: 50vh; overflow-y: auto; padding-right: 5px; display: flex; flex-direction: column; margin-bottom: 15px;"></div>
+        <div style="display: flex; gap: 10px;">
+            <button onclick="clearHistory()" class="btn-action" style="flex: 1; background: #ff4757; color: white;">BERSIHKAN</button>
+            <button onclick="closeModal('history-modal')" class="btn-action" style="flex: 1; background: var(--accent-color); color: white;">TUTUP</button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Kalkulator -->
+<div id="calc-modal" class="modal">
+    <div class="modal-content">
+        <h3>KALKULATOR</h3>
+        <input type="text" id="calc-display" style="width: 100%; font-size: 24px; text-align: right; margin-bottom: 15px; padding: 10px; border-radius: 8px; font-weight: 900;" readonly value="0">
+        
+        <button id="calc-mode-btn" class="btn-action" style="margin-bottom: 15px; width: 100%; font-size: 12px; font-weight: bold; background: var(--bg-color); color: var(--text-color);" onclick="toggleCalcMode()">SUARA: TONE</button>
+        
+        <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 15px;">
+            <button class="btn-action calc-btn" onclick="calcAction('C')" style="background: #ff4757; color: white;">C</button>
+            <button class="btn-action calc-btn" onclick="calcAction('DEL')" style="background: #e67e22; color: white;">⌫</button>
+            <button class="btn-action calc-btn" onclick="calcAction('%')">%</button>
+            <button class="btn-action calc-btn" onclick="calcAction('/')">÷</button>
+            <button class="btn-action calc-btn" onclick="calcAction('7')">7</button>
+            <button class="btn-action calc-btn" onclick="calcAction('8')">8</button>
+            <button class="btn-action calc-btn" onclick="calcAction('9')">9</button>
+            <button class="btn-action calc-btn" onclick="calcAction('*')">×</button>
+            <button class="btn-action calc-btn" onclick="calcAction('4')">4</button>
+            <button class="btn-action calc-btn" onclick="calcAction('5')">5</button>
+            <button class="btn-action calc-btn" onclick="calcAction('6')">6</button>
+            <button class="btn-action calc-btn" onclick="calcAction('-')">-</button>
+            <button class="btn-action calc-btn" onclick="calcAction('1')">1</button>
+            <button class="btn-action calc-btn" onclick="calcAction('2')">2</button>
+            <button class="btn-action calc-btn" onclick="calcAction('3')">3</button>
+            <button class="btn-action calc-btn" onclick="calcAction('+')">+</button>
+            <button class="btn-action calc-btn" onclick="calcAction('0')" style="grid-column: span 2; aspect-ratio: auto;">0</button>
+            <button class="btn-action calc-btn" onclick="calcAction('.')">.</button>
+            <button class="btn-action calc-btn" onclick="calcAction('=')" style="background: var(--accent-color); color: white;">=</button>
+        </div>
+        <button onclick="closeModal('calc-modal')" class="btn-action" style="width: 100%; background: #7f8c8d; color: white;">TUTUP</button>
+    </div>
+</div>
+
+<canvas id="canvas"></canvas>
+
+<script>
+    // --- Configurations & Maps ---
+    const EMOJI_KEYS = ['tambah', 'kurang', 'kali', 'bagi', 'simpan', 'undo', 'redo', 'reset', 'lanjut', 'kunci'];
+    const ALARM_SOUNDS = { dering: [880, 'square', 0.3, 0.2], long: [440, 'sine', 0.8, 0.3], bell: [1200, 'triangle', 0.5, 0.3], emergency: [2000, 'square', 0.1, 0.1] };
+    const CLICK_SOUNDS = { tajam: [1800, 'sine', 0.1, 0.3], tumpul: [150, 'sine', 0.15, 0.6], elektro: [800, 'square', 0.05, 0.1], kick: [60, 'sine', 0.2, 0.8], snap: [2500, 'triangle', 0.03, 0.4] };
+    const hueThreshold = 30;
+
+    // --- SVGs Paths Extracted (Dry Code) ---
+    const PATHS = {
+        save: 'M17 3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V7l-4-4zm-5 16c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3zm3-10H5V5h10v4z',
+        undo: 'M12.5 8c-2.65 0-5.05.99-6.9 2.6L2 7v9h9l-3.62-3.62c1.39-1.16 3.16-1.88 5.12-1.88 3.54 0 6.55 2.31 7.6 5.5l2.37-.78C21.08 11.03 17.15 8 12.5 8z',
+        redo: 'M18.4 10.6C16.55 8.99 14.15 8 11.5 8c-4.65 0-8.58 3.03-9.96 7.22l2.37.78c1.05-3.19 4.06-5.5 7.6-5.5 1.95 0 3.73.72 5.12 1.88L13 16h9V7l-3.6 3.6z',
+        lock: 'M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z',
+        unlock: 'M12 17c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm6-9h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6h1.9c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm0 12H6V10h12v10z',
+        reset: 'M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z',
+        play: 'M8 5v14l11-7z',
+        warn: 'M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z',
+        trash: 'M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z',
+        sun: 'M12 7c-2.76 0-5 2.24-5 5s2.24 5 5 5 5-2.24 5-5-2.24-5-5-5zM2 13h2c.55 0 1-.45 1-1s-.45-1-1-1H2c-.55 0-1 .45-1 1s.45 1 1 1zm18 0h2c.55 0 1-.45 1-1s-.45-1-1-1h-2c-.55 0-1 .45-1 1s.45 1 1 1zM11 2v2c0 .55.45 1 1 1s1-.45 1-1V2c0-.55-.45-1-1-1s-1 .45-1 1zm0 18v2c0 .55.45 1 1 1s1-.45 1-1v-2c0-.55-.45-1-1-1s-1 .45-1 1zM5.99 4.58a.996.996 0 0 0-1.41 0 .996.996 0 0 0 0 1.41l1.06 1.06c.39.39 1.03.39 1.41 0s.39-1.03 0-1.41L5.99 4.58zm12.37 12.37a.996.996 0 0 0-1.41 0 .996.996 0 0 0 0 1.41l.06 1.06c.39.39 1.03.39 1.41 0a.996.996 0 0 0 0-1.41l-1.06-1.06zm1.06-10.96a.996.996 0 0 0 0-1.41.996.996 0 0 0-1.41 0l-1.06 1.06c-.39.39-.39 1.03 0 1.41s1.03.39 1.41 0l1.06-1.06zM7.05 18.36a.996.996 0 0 0 0-1.41.996.996 0 0 0-1.41 0l-1.06 1.06c-.39.39-.39 1.03 0 1.41s1.03.39 1.41 0l1.06-1.06z',
+        moon: 'M12 3c-4.97 0-9 4.03-9 9s4.03 9 9 9 9-4.03 9-9c0-.46-.04-.92-.1-1.36a5.389 5.389 0 0 1-4.4 2.26 5.403 5.403 0 0 1-3.14-9.8c-.44-.06-.9-.1-1.36-.1z',
+        colorTab: 'M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm0-14c-3.31 0-6 2.69-6 6s2.69 6 6 6 6-2.69 6-6-2.69-6-6-6zm0 10c-2.21 0-4-1.79-4-4s1.79-4 4-4 4 1.79 4 4-1.79 4-4 4z',
+        emojiTab: 'M19.14,12.94c0.04-0.3,0.06-0.61,0.06-0.94c0-0.32-0.02-0.64-0.06-0.94l2.03-1.58c0.18-0.14,0.23-0.41,0.12-0.61 l-1.92-3.32c-0.12-0.22-0.37-0.29-0.59-0.22l-2.39,0.96c-0.5-0.38-1.03-0.7-1.62-0.94L14.4,2.81c-0.04-0.24-0.24-0.41-0.48-0.41 h-3.84c-0.24,0-0.43,0.17-0.47,0.41L9.25,5.35C8.66,5.59,8.12,5.92,7.63,6.29L5.24,5.33c-0.22-0.08-0.47,0-0.59,0.22L2.73,8.87 C2.62,9.08,2.66,9.34,2.86,9.48l2.03,1.58C4.84,11.36,4.8,11.69,4.8,12s0.02,0.64,0.06,0.94l-2.03,1.58 c-0.18,0.14-0.23,0.41-0.12,0.61l1.92,3.32c0.12,0.22,0.37,0.29,0.59,0.22l2.39-0.96c0.5,0.38,1.03,0.7,1.62,0.94l0.36,2.54 c0.05,0.24,0.24,0.41,0.48,0.41h3.84c0.24,0,0.44-0.17,0.47-0.41l0.36-2.54c0.59-0.24,1.13-0.56,1.62-0.94l2.39,0.96 c0.22,0.08,0.47,0,0.59-0.22l1.92-3.32c0.12-0.22,0.07-0.49-0.12-0.61L19.14,12.94z M12,15.6c-1.98,0-3.6-1.62-3.6-3.6 s1.62-3.6,3.6-3.6s3.6,1.62,3.6,3.6S13.98,15.6,12,15.6z'
+    };
+
+    const getIcon = (path, s = 14, style = 'vertical-align: middle; margin-right: 4px;') => `<svg viewBox="0 0 24 24" width="${s}" height="${s}" fill="currentColor" style="${style}"><path d="${path}"/></svg>`;
+    
+    const ICON_SAVE = getIcon(PATHS.save), ICON_UNDO = getIcon(PATHS.undo), ICON_REDO = getIcon(PATHS.redo);
+    const ICON_LOCK = getIcon(PATHS.lock), ICON_UNLOCK = getIcon(PATHS.unlock), ICON_RESET = getIcon(PATHS.reset);
+    const ICON_PLAY = getIcon(PATHS.play), ICON_WARN = getIcon(PATHS.warn), ICON_TRASH = getIcon(PATHS.trash);
+    const SVG_SUN = getIcon(PATHS.sun, 20, ''), SVG_MOON = getIcon(PATHS.moon, 20, '');
+
+    // --- State Variables ---
+    let count = 0, isLocked = false, isSystemLocked = false, lockedHue = null;
+    let isCooldown = false, sensorActive = false, alarmInterval = null, lastLockSpeakTime = 0;
+    let emojiSensorActive = false, handsModel = null, isEmojiCooldown = false;
+    let isProcessingHands = false, actionFrameCount = 0, isProcessLoopRunning = false;
+    let lastColorProcessTime = 0, lastHandProcessTime = 0, isColorDetected = false, currentTab = 'color';
+    let countHistory = [0], historyIndex = 0;
+    let audioCtx, notifTimeout;
+    let calcValue = "0", calcMode = 'tone';
+    
+    let savedData = JSON.parse(localStorage.getItem('savedData')) || [];
+    let actionHistory = JSON.parse(localStorage.getItem('actionHistory')) || [];
+
+    const emojiMap = {
+        'tambah': 'thumbs_up', 'kurang': 'thumbs_down', 'kali': 'ok', 'bagi': 'peace',
+        'simpan': 'none', 'undo': 'point_left', 'redo': 'point_right',
+        'reset': 'fist', 'lanjut': 'point_up', 'kunci': 'none'
+    };
+
+    const emojiOptionsHTML = `
+        <option value="none">-- Nonaktif --</option><option value="thumbs_up">👍🏼 Thumbs Up</option>
+        <option value="thumbs_down">👎🏼 Thumbs Down</option><option value="point_up">👆🏼 Tunjuk Atas</option>
+        <option value="index_up">☝🏼 Telunjuk Atas</option><option value="point_down">👇🏼 Tunjuk Bawah</option>
+        <option value="point_left">👈🏼 Tunjuk Kiri (Undo)</option><option value="point_right">👉🏼 Tunjuk Kanan (Redo)</option>
+        <option value="peace">✌🏼 Peace / V</option><option value="ok">👌🏼 OK</option>
+        <option value="pinched_fingers">🤌🏼 Jari Menguncup</option><option value="pinching_hand">🤏🏼 Mencubit</option>
+        <option value="open_hand">🤚🏼 / 🖐🏼 Terbuka</option><option value="call_me">🤙🏼 Call Me</option>
+        <option value="point_you">🫵🏼 Tunjuk Kamu</option><option value="middle_finger">🖕🏼 Jari Tengah</option>
+        <option value="fist">👊🏼 / ✊🏼 Mengepal</option><option value="ily">🤟🏼 Metal / ILY</option>
+    `;
+
+    // --- DOM Elements ---
+    const $ = id => document.getElementById(id);
+    const display = $('display'), led = $('led'), btnTap = $('btn-tap'), btnContinue = $('btn-continue'),
+          limitInput = $('limit'), body = $('main-body'), clickSoundSelect = $('click-sound'),
+          limitSoundSelect = $('limit-sound'), video = $('video'), canvas = $('canvas'), 
+          colorPreview = $('locked-color-preview'), groupInfo = $('group-info'),
+          aiToggle = $('ai-voice-toggle'), targetLabel = $('target-label'), btnLock = $('btn-lock');
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+
+    // --- Helpers (UI & Logging) ---
+    function showNotification(htmlStr, color = 'var(--text-color)') {
+        const notif = $('action-notification');
+        notif.innerHTML = htmlStr; notif.style.color = color;
+        notif.classList.remove('anim-blink'); void notif.offsetWidth; notif.classList.add('anim-blink');
+        clearTimeout(notifTimeout); notifTimeout = setTimeout(() => notif.classList.remove('anim-blink'), 800); 
+    }
+
+    function spawnFloatingText(text, color) {
+        const container = $('floating-area'), el = document.createElement('div');
+        el.className = 'float-text'; el.innerText = text; el.style.color = color;
+        container.appendChild(el);
+        setTimeout(() => { if (el.parentNode === container) container.removeChild(el); }, 1000);
+    }
+
+    function logAction(actionName, detail, color) {
+        const time = new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' }).replace(/\./g, ':');
+        actionHistory.unshift({ time, action: actionName, detail, color });
+        if (actionHistory.length > 60) actionHistory.pop(); 
+        localStorage.setItem('actionHistory', JSON.stringify(actionHistory));
+    }
+
+    function notifyAndLog(actionName, notifText, logDetail, color) { showNotification(notifText, color); logAction(actionName, logDetail, color); }
+    function showMathAction(valText, actionName, color) { showNotification(valText, color); spawnFloatingText(valText, color); logAction(actionName, valText, color); }
+
+    const updateBadge = () => {
+        const badge = $('saved-badge');
+        badge.innerText = savedData.length;
+        badge.style.opacity = savedData.length > 0 ? '1' : '0';
+        badge.style.transform = "scale(1.3)"; setTimeout(() => badge.style.transform = "scale(1)", 200);
+    };
+
+    // --- Audio System ---
+    const initAudio = () => { if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)(); };
+    function playTone(freq, type, dur, vol) {
+        initAudio(); const osc = audioCtx.createOscillator(), gain = audioCtx.createGain();
+        osc.type = type; osc.frequency.value = freq;
+        gain.gain.value = vol; gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + dur);
+        osc.connect(gain); gain.connect(audioCtx.destination); osc.start(); osc.stop(audioCtx.currentTime + dur);
+    }
+
+    const startAlarm = () => { stopAlarm(); alarmInterval = setInterval(playAlarm, 500); };
+    const stopAlarm = () => { if(alarmInterval) clearInterval(alarmInterval); };
+
+    function playAlarm() {
+        const v = limitSoundSelect.value;
+        if(ALARM_SOUNDS[v]) playTone(...ALARM_SOUNDS[v]); 
+        else if(v === 'sirine') { playTone(600, 'sawtooth', 0.2, 0.1); setTimeout(()=>playTone(800, 'sawtooth', 0.2, 0.1), 200); } 
+        else if(v === 'ufo') playTone(Math.random()*1000 + 200, 'sine', 0.1, 0.2);
+    }
+
+    function playIncreaseSound() {
+        const v = clickSoundSelect.value;
+        if(CLICK_SOUNDS[v]) playTone(...CLICK_SOUNDS[v]); 
+        else if(v === 'cyber') { playTone(1200, 'sawtooth', 0.05, 0.1); playTone(400, 'sine', 0.1, 0.2); }
+    }
+
+    // --- Voice AI ---
+    const synth = window.speechSynthesis;
+    let aiVoices = [];
+    synth.onvoiceschanged = () => aiVoices = synth.getVoices();
+
+    function speakText(text, callback) {
+        if (aiToggle.value === 'off') { if(callback) callback(); return; }
+        synth.cancel(); const utter = new SpeechSynthesisUtterance(text);
+        utter.lang = 'id-ID'; utter.rate = 1.1; utter.pitch = 1.2;
+        utter.voice = aiVoices.find(v => v.lang.includes('id') && /(female|wanita)/i.test(v.name)) || aiVoices.find(v => v.lang.includes('id'));
+        if (callback) utter.onend = callback;
+        synth.speak(utter);
+    }
+
+    function toIndoWords(num) {
+        if (num < 0) return "minus " + toIndoWords(Math.abs(num));
+        const words = ["nol", "satu", "dua", "tiga", "empat", "lima", "enam", "tujuh", "delapan", "sembilan", "sepuluh", "sebelas"];
+        function convert(n) {
+            if (n < 12) return words[n];
+            if (n < 20) return convert(n - 10) + " belas";
+            if (n < 100) return convert(Math.floor(n / 10)) + " puluh" + (n % 10 !== 0 ? " " + convert(n % 10) : "");
+            if (n < 200) return "seratus" + (n - 100 !== 0 ? " " + convert(n - 100) : "");
+            if (n < 1000) return convert(Math.floor(n / 100)) + " ratus" + (n % 100 !== 0 ? " " + convert(n % 100) : "");
+            if (n < 2000) return "seribu" + (n - 1000 !== 0 ? " " + convert(n - 1000) : "");
+            if (n < 1000000) return convert(Math.floor(n / 1000)) + " ribu" + (n % 1000 !== 0 ? " " + convert(n % 1000) : "");
+            if (n < 1000000000) return convert(Math.floor(n / 1000000)) + " juta" + (n % 1000000 !== 0 ? " " + convert(n % 1000000) : "");
+            if (n < 1000000000000) return convert(Math.floor(n / 1000000000)) + " miliar" + (n % 1000000000 !== 0 ? " " + convert(n % 1000000000) : "");
+            if (n < 1000000000000000) return convert(Math.floor(n / 1000000000000)) + " triliun" + (n % 1000000000000 !== 0 ? " " + convert(n % 1000000000000) : "");
+            return n.toString();
+        }
+        let parts = num.toString().split('.');
+        let intPart = parts[0] === "" ? 0 : parseInt(parts[0]);
+        let result = convert(intPart);
+        if (parts.length > 1) result += " koma " + parts[1].split('').map(d => convert(parseInt(d))).join(" ");
+        return result.trim();
+    }
+
+    // --- Core Logic & History ---
+    function updateDisplayLoud(voicePrefix) {
+        if (count >= 9999999) {
+            let scale = 7 / count.toString().split('.')[0].length; 
+            display.style.fontSize = `clamp(${75 * scale}px, ${22 * scale}vw, ${120 * scale}px)`;
+        } else display.style.fontSize = ''; 
+
+        display.innerText = count.toString().replace('.', ',');
+        speakText((voicePrefix ? voicePrefix + " sama dengan " : "") + toIndoWords(count));
+        
+        display.style.transform = "scale(1.1)"; setTimeout(() => display.style.transform = "scale(1)", 100);
+        
+        let lim = parseInt(limitInput.value);
+        if (lim > 0 && count >= lim) {
+            isLocked = true; led.className = 'led-indicator led-limit'; btnContinue.style.display = 'block';
+            startAlarm(); if (navigator.vibrate) navigator.vibrate([400, 100, 400]);
+        }
+    }
+
+    function updateHistory(newCount, voicePrefix = "") {
+        if (!Number.isInteger(newCount)) newCount = parseFloat(newCount.toFixed(2));
+        
+        if (newCount >= 999999999999) {
+            newCount = 999999999999;
+            if (count !== 999999999999) setTimeout(() => alert("Batas penghitungan mencapai maksimum!"), 100);
+            else { alert("Batas maksimum penghitungan sudah dicapai!"); return; }
+        }
+
+        if (newCount === countHistory[historyIndex]) return;
+        countHistory = countHistory.slice(0, historyIndex + 1);
+        countHistory.push(newCount); historyIndex++; count = newCount;
+        updateDisplayLoud(voicePrefix);
+    }
+
+    function moveHistory(step, actionName, icon, color) {
+        if (isSystemLocked) return speakLockedFeedback();
+        const newIndex = historyIndex + step;
+        if (newIndex >= 0 && newIndex < countHistory.length) {
+            historyIndex = newIndex; count = countHistory[historyIndex];
+            updateDisplayLoud(actionName.toLowerCase());
+            notifyAndLog(actionName, icon + ' ' + actionName.toUpperCase(), icon, color);
+            playTone(step > 0 ? 400 : 300, 'triangle', 0.1, 0.3);
+        }
+    }
+
+    window.undoCount = () => moveHistory(-1, 'Undo', ICON_UNDO, '#9b59b6');
+    window.redoCount = () => moveHistory(1, 'Redo', ICON_REDO, '#f39c12');
+
+    // --- Trigger Actions ---
+    btnTap.addEventListener('click', () => {
+        if (isSystemLocked) return speakLockedFeedback();
+        initAudio(); if (audioCtx.state === 'suspended') audioCtx.resume();
+        if (isLocked) return;
+        
+        led.classList.add('led-active');
+        let addVal = parseFloat($('val-tambah').value) || 1;
+        
+        updateHistory(count + addVal); showMathAction('+' + addVal, 'Tambah', '#2ecc71');
+        setTimeout(() => { if(!isLocked) led.classList.remove('led-active'); }, 100); 
+        if (!isLocked) playIncreaseSound();
+    });
+
+    function decreaseCounter() {
+        if (isSystemLocked) return speakLockedFeedback();
+        if (isLocked || count <= 0) return;
+        let subVal = parseFloat($('val-kurang').value) || 1;
+        updateHistory(Math.max(0, count - subVal), "kurang"); showMathAction('-' + subVal, 'Kurang', '#ff4757');
+        display.style.transform = "scale(0.9)"; setTimeout(() => display.style.transform = "scale(1)", 100);
+        playTone(300, 'triangle', 0.15, 0.4);
+    }
+
+    function performMathAction(newCount, operatorStr, actionName, color, freq) {
+        updateHistory(newCount); showMathAction(operatorStr, actionName, color);
+        playTone(freq, 'square', 0.1, 0.2); updateDisplayLoud(actionName.toLowerCase());
+    }
+
+    function resetCounter(force = false) {
+        if ((count === 0 && !isLocked) || (!force && !confirm("Reset penghitung ke 0?"))) return;
+        countHistory = [0]; historyIndex = count = 0; isLocked = isColorDetected = false;
+        display.innerText = count; display.style.fontSize = ''; 
+        led.classList.remove('led-limit', 'led-active'); btnContinue.style.display = 'none';
+        stopAlarm(); notifyAndLog('Reset', ICON_RESET + ' RESET', ICON_RESET + ' 0', '#ff4757');
+        playTone(200, 'sawtooth', 0.1, 0.4); speakText("reset");
+        groupInfo.innerText = currentTab === 'color' ? "Status: Kamera Off" : "Sensor Emoji Aktif & Berjalan";
+    }
+      
+    function continueCounter() {
+        isLocked = false; led.classList.remove('led-limit'); btnContinue.style.display = 'none'; stopAlarm();
+        notifyAndLog('Lanjut', ICON_PLAY + ' LANJUT', ICON_PLAY, '#2ecc71');
+        playTone(600, 'sine', 0.1, 0.3); setTimeout(() => playTone(800, 'sine', 0.15, 0.3), 100); setTimeout(() => speakText("lanjutkan"), 300);
+    }
+
+    // --- System Lock ---
+    function speakLockedFeedback() {
+        showNotification(ICON_WARN + ' BUKA KUNCI UNTUK MELANJUTKAN', '#ff4757');
+        if (Date.now() - lastLockSpeakTime > 3000) { speakText("Penghitungan Dikunci. Buka Kunci Untuk Melanjutkan"); lastLockSpeakTime = Date.now(); }
+        led.classList.add('led-limit'); setTimeout(() => { if (!isLocked) led.classList.remove('led-limit'); }, 300);
+    }
+
+    function toggleSystemLock() {
+        isSystemLocked = !isSystemLocked;
+        btnLock.innerHTML = getIcon(isSystemLocked ? PATHS.lock : PATHS.unlock, 16, 'vertical-align: text-bottom; margin-right: 4px;') + (isSystemLocked ? "<span>BUKA</span>" : "<span>KUNCI</span>");
+        btnLock.style.background = isSystemLocked ? "#ff4757" : "var(--bg-color)"; btnLock.style.color = isSystemLocked ? "white" : "var(--text-color)";
+        notifyAndLog('Sistem', (isSystemLocked ? ICON_LOCK + ' PENGHITUNGAN DIKUNCI' : ICON_UNLOCK + ' KUNCI DIBUKA'), (isSystemLocked ? ICON_LOCK + ' Kunci' : ICON_UNLOCK + ' Buka'), isSystemLocked ? '#ff4757' : '#2ecc71');
+        speakText(isSystemLocked ? "Penghitungan dikunci" : "Kunci dibuka");
+    }
+
+    // --- Modals Logic & Storage ---
+    const toggleModal = (id, show) => $(id).style.display = show ? 'flex' : 'none';
+    window.closeModal = (id) => toggleModal(id, false);
+    window.onclick = e => { if (e.target.classList.contains('modal')) e.target.style.display = "none"; };
+
+    function saveScore(titlePrefix, isAuto) {
+        const title = titlePrefix || getFormattedDateTime() + (isAuto ? " (Auto)" : "");
+        savedData.unshift({ id: Date.now(), title, score: count });
+        localStorage.setItem('savedData', JSON.stringify(savedData)); updateBadge();
+        notifyAndLog(isAuto ? 'Simpan Auto' : 'Simpan', ICON_SAVE + ' HASIL DISIMPAN', ICON_SAVE + ' ' + count, 'var(--text-color)');
+        speakText(isAuto ? "Disimpan otomatis" : "Hasil disimpan");
+        if (isAuto) { playTone(800, 'sine', 0.1, 0.3); setTimeout(() => playTone(1200, 'sine', 0.1, 0.3), 150); }
+    }
+
+    window.autoSaveCount = () => saveScore('', true);
+    window.confirmSaveCount = () => { saveScore($('save-modal-title').value.trim(), false); toggleModal('save-modal', false); };
+    
+    function openSaveModal() { $('save-modal-count').innerText = count; $('save-modal-title').value = getFormattedDateTime(); toggleModal('save-modal', true); }
+    function openListModal() { renderSavedList(); toggleModal('list-modal', true); }
+    function openHistoryModal() { renderHistory(); toggleModal('history-modal', true); }
+
+    function getFormattedDateTime() {
+        const now = new Date();
+        return `${now.toLocaleDateString('id-ID', { day: '2-digit', month: '2-digit', year: 'numeric' })} ${now.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' }).replace(/\./g, ':')}`;
+    }
+
+    function renderSavedList() {
+        const container = $('saved-list-container'), totalEl = $('total-saved-points');
+        if (totalEl) totalEl.innerText = 'Total Poin: ' + savedData.reduce((s, i) => s + i.score, 0).toString().replace('.', ',');
+        container.innerHTML = savedData.length ? savedData.map(item => `
+            <div class="list-item">
+                <div><strong style="display:block; font-size:12px; color: var(--accent-color);">${item.title}</strong><span style="font-size:11px; opacity:0.8;">Poin: ${item.score}</span></div>
+                <button class="del-btn" onclick="deleteSavedItem(${item.id})">Hapus</button>
+            </div>`).join('') : `<p style="text-align:center; font-size:12px; opacity:0.6; margin:15px 0;">Belum ada data tersimpan.</p>`;
+    }
+
+    function deleteSavedItem(id) {
+        if (!confirm("Hapus poin tersimpan ini?")) return;
+        savedData = savedData.filter(item => item.id !== id);
+        localStorage.setItem('savedData', JSON.stringify(savedData)); updateBadge(); renderSavedList();
+    }
+
+    function clearAllSaved() {
+        if (savedData.length && confirm("Hapus semua poin tersimpan?")) {
+            savedData = []; localStorage.setItem('savedData', JSON.stringify(savedData));
+            updateBadge(); renderSavedList(); showNotification(ICON_TRASH + ' SEMUA DAFTAR DIBERSIHKAN', '#ff4757');
+        }
+    }
+
+    function renderHistory() {
+        $('history-list-container').innerHTML = actionHistory.length ? actionHistory.map(item => `
+            <div class="history-item">
+                <div><strong style="display:block; font-size:12px;">${item.action}</strong><span class="history-time">${item.time}</span></div>
+                <span class="history-detail" style="color: ${item.color}">${item.detail}</span>
+            </div>`).join('') : `<p style="text-align:center; font-size:12px; opacity:0.6; margin:15px 0;">Belum ada riwayat aksi.</p>`;
+    }
+
+    function clearHistory() {
+        if (confirm("Hapus semua riwayat aksi?")) {
+            actionHistory = []; localStorage.removeItem('actionHistory');
+            renderHistory(); showNotification(ICON_TRASH + ' RIWAYAT DIBERSIHKAN', '#ff4757');
+        }
+    }
+
+    // --- Kalkulator Logic ---
+    function openCalcModal() { toggleModal('calc-modal', true); }
+    function toggleCalcMode() {
+        calcMode = calcMode === 'tone' ? 'tone + voice' : (calcMode === 'tone + voice' ? 'off' : 'tone');
+        $('calc-mode-btn').innerText = "SUARA: " + calcMode.toUpperCase();
+    }
+
+    function playCalcSound(val) {
+        if (calcMode === 'off') return; initAudio();
+        if (calcMode === 'tone + voice' && ['C', 'DEL'].includes(val)) return speakText(val === 'C' ? 'bersihkan' : 'hapus');
+        const freqs = {'0': 400, '1': 440, '2': 480, '3': 520, '4': 560, '5': 600, '6': 640, '7': 680, '8': 720, '9': 760, '+': 800, '-': 840, '*': 880, '/': 920, '%': 960, '=': 1000, 'C': 300, 'DEL': 350, '.': 380};
+        playTone(freqs[val] || 600, 'triangle', 0.15, 0.8);
+    }
+
+    function formatCalcDisplay(valStr) {
+        return valStr.replace(/\d+(?:\.\d+)?/g, m => m.split('.').map((p, i) => i === 0 ? parseInt(p).toLocaleString('id-ID') : p).join(',')).replace(/\*/g, '×').replace(/\//g, '÷');
+    }
+
+    function calcAction(val) {
+        if (val !== '=') playCalcSound(val);
+        const displayCalc = $('calc-display');
+        
+        if (val === 'C') calcValue = "0";
+        else if (val === 'DEL') calcValue = calcValue.length > 1 ? calcValue.slice(0, -1) : "0";
+        else if (val === '=') { 
+            try { 
+                let expression = calcValue;
+                let parseForEval = expression.replace(/(\d+(?:\.\d+)?)%(\d+(?:\.\d+)?)/g, "($1/100)*$2").replace(/%/g, "/100");
+                let result = eval(parseForEval);
+                
+                if (result !== undefined && !isNaN(result)) {
+                    if (calcMode.includes('tone')) playTone(1000, 'triangle', 0.15, 0.8);
+                    if (calcMode === 'tone + voice') {
+                        let speechText = "", match = expression.match(/(\d+(?:\.\d+)?)%(\d+(?:\.\d+)?)/);
+                        if (match) speechText = `${toIndoWords(Math.min(match[1], match[2]))} persen dari ${toIndoWords(Math.max(match[1], match[2]))} adalah ${toIndoWords(result)}`;
+                        else speechText = `${expression.replace(/\*/g, " kali ").replace(/\//g, " bagi ").replace(/\+/g, " tambah ").replace(/-/g, " kurang ").replace(/%/g, " persen ").replace(/\d+(?:\.\d+)?/g, m => toIndoWords(parseFloat(m)))} sama dengan ${toIndoWords(result)}`;
+                        speakText(speechText);
+                    }
+                    calcValue = result.toString();
+                }
+            } catch(e) {}
+        } else if (['+', '-', '*', '/', '%'].includes(val)) {
+            calcValue = ['+', '-', '*', '/', '%'].includes(calcValue.slice(-1)) ? calcValue.slice(0, -1) + val : calcValue + val;
+        } else if (val === '.') {
+            const parts = calcValue.split(/[\+\-\*\/\%]/);
+            if (!parts[parts.length - 1].includes('.')) calcValue += '.';
+        } else {
+            calcValue = (calcValue === "0") ? val : calcValue + val;
+        }
+        displayCalc.value = formatCalcDisplay(calcValue);
+    }
+
+    // --- Settings & Themes ---
+    function switchTab(tab) {
+        currentTab = tab;
+        $('tab-color').classList.toggle('active', tab === 'color'); $('tab-emoji').classList.toggle('active', tab === 'emoji');
+        $('dt-text').innerHTML = getIcon(tab === 'color' ? PATHS.colorTab : PATHS.emojiTab, 14, 'vertical-align: text-bottom; margin-right: 4px;') + (tab === 'color' ? ' KUNCI WARNA OBJEK' : ' PENGATURAN EMOJI');
+        colorPreview.style.display = tab === 'color' ? 'inline-block' : 'none';
+        $('dynamic-top-btn').onclick = tab === 'color' ? lockCurrentColor : openEmojiModal;
+        updateToggleBtnUI();
+    }
+
+    function updateToggleBtnUI() {
+        const btn = $('dynamic-toggle-btn'), isActive = currentTab === 'color' ? sensorActive : emojiSensorActive;
+        $('dot-color').className = `status-dot ${sensorActive ? 'dot-on' : 'dot-off'}`;
+        $('dot-emoji').className = `status-dot ${emojiSensorActive ? 'dot-on' : 'dot-off'}`;
+        btn.innerHTML = `<svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" style="vertical-align: text-bottom; margin-right: 4px;"><path d="M12 10a2 2 0 1 0 0 4 2 2 0 0 0 0-4z M16.95 6.95l-1.41 1.41a4.99 4.99 0 0 1 0 7.28l1.41 1.41a6.99 6.99 0 0 0 0-10.1z M7.05 6.95l1.41 1.41a4.99 4.99 0 0 0 0 7.28l-1.41 1.41a6.99 6.99 0 0 1 0-10.1z M19.78 4.12l-1.41 1.41a8.99 8.99 0 0 1 0 12.96l1.41 1.41a10.99 10.99 0 0 0 0-15.78z M4.22 4.12l1.41 1.41a8.99 8.99 0 0 0 0 12.96l-1.41 1.41a10.99 10.99 0 0 1 0-15.78z"/></svg> SENSOR: ${isActive ? 'ON' : 'OFF'}`;
+        btn.style.background = isActive ? '#2ecc71' : '#ff4757'; btn.onclick = currentTab === 'color' ? toggleSensor : toggleEmojiSensor;
+    }
+
+    function openEmojiModal() {
+        EMOJI_KEYS.forEach(k => { const el = $(`emj-${k}`); if(!el.innerHTML) el.innerHTML = emojiOptionsHTML; el.value = emojiMap[k]; });
+        toggleModal('emoji-modal', true);
+    }
+
+    function saveEmojiSettings() { EMOJI_KEYS.forEach(k => emojiMap[k] = $(`emj-${k}`).value); toggleModal('emoji-modal', false); groupInfo.innerText = "Pengaturan Emoji Tersimpan"; }
+
+    const toggleNightMode = () => { body.classList.toggle('night-mode'); $('theme-icon').innerHTML = body.classList.contains('night-mode') ? SVG_SUN : SVG_MOON; };
+    const checkLimit = () => { 
+        const isUnlimited = !(parseInt(limitInput.value) > 0); targetLabel.innerText = isUnlimited ? "UNLIMITED" : "Target Limit"; 
+        limitSoundSelect.disabled = isUnlimited; limitSoundSelect.value = isUnlimited ? "" : (limitSoundSelect.value || "dering"); limitSoundSelect.style.opacity = isUnlimited ? "0.5" : "1";
+    };
+    function clearTarget() { limitInput.value = ''; checkLimit(); }
+
+    // --- Sensors ---
+    async function startCamera() {
+        if (!video.srcObject) {
+            try { video.srcObject = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio: false }); return true; } 
+            catch (err) { groupInfo.innerText = "Izin Kamera Ditolak"; return false; }
+        } return true;
+    }
+
+    function stopCamera(forceText) {
+        if (!sensorActive && !emojiSensorActive && video.srcObject) { video.srcObject.getTracks().forEach(t => t.stop()); video.srcObject = null; groupInfo.innerText = forceText || "Status: Kamera Off"; isProcessLoopRunning = false; } 
+        else if (forceText) groupInfo.innerText = forceText;
+    }
+
+    const rgbToHsv = (r, g, b) => {
+        r /= 255; g /= 255; b /= 255; const max = Math.max(r, g, b), min = Math.min(r, g, b), d = max - min; let h = 0, s = max === 0 ? 0 : d / max;
+        if (max !== min) h = max === r ? (g - b) / d + (g < b ? 6 : 0) : max === g ? (b - r) / d + 2 : (r - g) / d + 4;
+        return { h: (h / 6) * 360, s, v: max };
+    };
+
+    const isMatch = (c) => {
+        let hsv = rgbToHsv(...c), diff = Math.abs(hsv.h - lockedHue);
+        return (diff > 180 ? 360 - diff : diff) < hueThreshold && hsv.s > 0.2 && hsv.v > 0.2;
+    };
+
+    function lockCurrentColor() {
+        if (video.readyState !== video.HAVE_ENOUGH_DATA) return alert("Aktifkan sensor kamera terlebih dahulu.");
+        canvas.width = video.videoWidth; canvas.height = video.videoHeight; ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        const [r, g, b] = ctx.getImageData(canvas.width/2, canvas.height/2, 1, 1).data;
+        lockedHue = rgbToHsv(r, g, b).h; colorPreview.style.backgroundColor = `rgb(${r},${g},${b})`;
+        groupInfo.innerText = "WARNA TERKUNCI: Siap Hitung"; isColorDetected = false;
+    }
+
+    async function toggleSensor() {
+        sensorActive = !sensorActive; updateToggleBtnUI();
+        if (sensorActive) { if (await startCamera()) { groupInfo.innerText = "Arahkan ke barang & kunci warna"; startProcessLoop(); } else toggleSensor(); } 
+        else { stopCamera("Sensor Warna Nonaktif"); isColorDetected = false; }
+    }
+
+    function detectEmoji(lm) {
+        const dist = (p1, p2) => Math.hypot(lm[p1].x - lm[p2].x, lm[p1].y - lm[p2].y);
+        const idx = dist(8, 0) > dist(6, 0), mid = dist(12, 0) > dist(10, 0), rng = dist(16, 0) > dist(14, 0), pnk = dist(20, 0) > dist(18, 0), closed = !idx && !mid && !rng && !pnk, allOpen = idx && mid && rng && pnk, pinchDist = dist(4, 8);
+        if (pinchDist < 0.06 && dist(4, 12) < 0.06 && dist(4, 16) < 0.06) return 'pinched_fingers';
+        if (pinchDist < 0.05 && !mid && !rng && !pnk) return 'pinching_hand';
+        if (pinchDist < 0.05 && mid && rng && pnk) return 'ok'; 
+        if (closed) return lm[4].y < lm[5].y - 0.04 ? 'thumbs_up' : (lm[4].y > lm[0].y + 0.02 ? 'thumbs_down' : 'fist'); 
+        if (allOpen) return 'open_hand'; 
+        if (idx && mid && !rng && !pnk) return 'peace'; 
+        if (idx && !mid && !rng && !pnk) {
+            let dx = lm[8].x - lm[5].x, dy = lm[8].y - lm[5].y;
+            if (lm[8].z < -0.08 && Math.abs(dx) < 0.08 && Math.abs(dy) < 0.08) return 'point_you'; 
+            return Math.abs(dx) > Math.abs(dy) ? (dx < 0 ? 'point_right' : 'point_left') : (dy > 0 ? 'point_down' : (dist(4, 9) > 0.08 ? 'point_up' : 'index_up')); 
+        }
+        if (!idx && mid && !rng && !pnk) return 'middle_finger'; 
+        if (idx && !mid && !rng && pnk) return 'ily'; 
+        if (!idx && !mid && !rng && pnk) return 'call_me';
+        return null;
+    }
+
+    async function toggleEmojiSensor() {
+        emojiSensorActive = !emojiSensorActive; updateToggleBtnUI();
+        if (emojiSensorActive) {
+            if (!handsModel) {
+                groupInfo.innerText = "Memuat AI Tangan...";
+                handsModel = new Hands({ locateFile: f => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${f}` });
+                handsModel.setOptions({ maxNumHands: 1, modelComplexity: 1, minDetectionConfidence: 0.7, minTrackingConfidence: 0.7 });
+                handsModel.onResults(onHandsResults);
+            }
+            if (await startCamera()) { groupInfo.innerText = "Sensor Emoji Aktif & Berjalan"; startProcessLoop(); } else toggleEmojiSensor();
+        } else stopCamera("Sensor Emoji Nonaktif");
+    }
+
+    function onHandsResults(results) {
+        if (!emojiSensorActive || isEmojiCooldown || !results.multiHandLandmarks?.length) return actionFrameCount = 0;
+        const matchedAction = Object.keys(emojiMap).find(k => emojiMap[k] === detectEmoji(results.multiHandLandmarks[0]));
+        if (matchedAction) {
+            if (['reset', 'kunci', 'simpan'].includes(matchedAction)) {
+                if (++actionFrameCount > 5) { actionFrameCount = 0; if (matchedAction === 'reset') led.classList.remove('led-limit'); triggerEmojiAction(matchedAction); }
+            } else {
+                actionFrameCount = 0;
+                if (!isLocked && ['tambah', 'kurang', 'kali', 'bagi', 'undo', 'redo'].includes(matchedAction)) triggerEmojiAction(matchedAction);
+                else if (isLocked && matchedAction === 'lanjut') triggerEmojiAction('lanjut');
+            }
+        } else actionFrameCount = 0;
+    }
+
+    function triggerEmojiAction(action) {
+        if (action === 'kunci') return toggleSystemLock();
+        if (isSystemLocked) return speakLockedFeedback();
+        
+        initAudio(); isEmojiCooldown = true; led.classList.add('led-active');
+        const actions = {
+            'tambah': () => btnTap.click(), 'kurang': decreaseCounter, 'undo': undoCount, 'redo': redoCount,
+            'kali': () => performMathAction(count * (parseFloat($('val-kali').value) || 2), 'x' + (parseFloat($('val-kali').value) || 2), 'Kali', '#00ced1', 800),
+            'bagi': () => performMathAction(count / (parseFloat($('val-bagi').value) || 2), '÷' + (parseFloat($('val-bagi').value) || 2), 'Bagi', '#9b59b6', 400),
+            'simpan': autoSaveCount, 'reset': () => (count > 0 || isLocked) && resetCounter(true), 'lanjut': () => isLocked && continueCounter()
+        };
+        actions[action]?.();
+        
+        // Cooldown dinamis agar lebih responsif untuk aksi tambah & kurang poin
+        const cdTime = ['tambah', 'kurang'].includes(action) ? 400 : 1200;
+        setTimeout(() => { isEmojiCooldown = false; if(!isLocked) led.classList.remove('led-active'); }, cdTime);
+    }
+
+    function startProcessLoop() { if (!isProcessLoopRunning) { isProcessLoopRunning = true; requestAnimationFrame(processFrame); } }
+
+    async function processFrame(timestamp) {
+        if (!sensorActive && !emojiSensorActive) return isProcessLoopRunning = false;
+
+        if (sensorActive && lockedHue !== null && !isLocked && (timestamp - lastColorProcessTime > 80)) {
+            lastColorProcessTime = timestamp; ctx.drawImage(video, 0, 0, 20, 20);
+            const match = isMatch(ctx.getImageData(10, 10, 1, 1).data);
+            if (match && !isColorDetected && !isCooldown) {
+                isColorDetected = true;
+                if (isSystemLocked) speakLockedFeedback();
+                else { btnTap.click(); isCooldown = true; setTimeout(() => { isCooldown = false; }, 600); }
+            } else if (!match) isColorDetected = false;
+        }
+        
+        if (emojiSensorActive && handsModel && video.readyState >= 2 && !isProcessingHands && (timestamp - lastHandProcessTime > 120)) {
+            lastHandProcessTime = timestamp; isProcessingHands = true; 
+            try { await handsModel.send({image: video}); } catch(e){} isProcessingHands = false;
+        }
+        requestAnimationFrame(processFrame);
+    }
+
+    // --- Init ---
+    checkLimit(); updateBadge();
+</script>
+</body>
+</html>
